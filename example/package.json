@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "react": "16.13.1",
-    "react-native": "0.63.4"
+    "react-native": "0.63.4",
+    "react-native-bidirectional-infinite-scroll": "link:../",
+    "@stream-io/flat-list-mvcp": "^"
   },
   "devDependencies": {
     "@babel/core": "^7.12.10",
