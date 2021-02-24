@@ -5,6 +5,7 @@ import {
   ScrollViewProps,
   StyleSheet,
   View,
+  ListRenderItem,
 } from 'react-native';
 import { FlatList } from '@stream-io/flat-list-mvcp';
 
@@ -26,6 +27,7 @@ type Props<T> = FlatListProps<T> & {
   FooterLoadingIndicator?: React.ComponentType;
   ListHeaderComponent?: React.ComponentType;
   ListFooterComponent?: React.ComponentType;
+  renderItem: ListRenderItem<T>;
 };
 
 /**
@@ -52,6 +54,7 @@ const BidirectionalFlatList = <T extends any>(props: Props<T>) => {
     onStartReached = () => Promise.resolve(),
     onStartReachedThreshold = 10,
     showDefaultLoadingIndicators = true,
+    renderItem,
   } = props;
 
   const [onStartReachedInProgress, setOnStartReachedInProgress] = useState(
@@ -187,6 +190,9 @@ const BidirectionalFlatList = <T extends any>(props: Props<T>) => {
     );
   };
 
+  const compareRenderItensEquality = (prevProps: any, nextProps: any) => prevProps.item === nextProps.item;
+  const MemoizedRenderItem = React.useCallback(React.memo(renderItem, compareRenderItensEquality), []);
+
   return (
     <>
       <FlatList
@@ -196,6 +202,7 @@ const BidirectionalFlatList = <T extends any>(props: Props<T>) => {
         ListFooterComponent={renderFooterLoadingIndicator}
         onEndReached={null}
         onScroll={handleScroll}
+        renderItem={(args: any) => <MemoizedRenderItem {...args} />}
         // @ts-ignore
         maintainVisibleContentPosition={{
           autoscrollToTopThreshold: undefined,
