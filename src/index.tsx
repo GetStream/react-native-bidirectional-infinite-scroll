@@ -16,15 +16,43 @@ const styles = StyleSheet.create({
 });
 
 type Props<T> = FlatListProps<T> & {
+  /**
+   * Called once when the scroll position gets close to end of list. This must return a promise.
+   * You can `onEndReachedThreshold` as distance from end of list, when this function should be called.
+   */
   onEndReached: () => Promise<void>;
+  /**
+   * Called once when the scroll position gets close to begining of list. This must return a promise.
+   * You can `onStartReachedThreshold` as distance from beginning of list, when this function should be called.
+   */
   onStartReached: () => Promise<void>;
+  /** Color or inline loading indicator */
   activityIndicatorColor?: string;
+  /**
+   * Enable autoScrollToTop.
+   * In chat type applications, you want to auto scroll to bottom, when new message comes it.
+   */
+  enableAutoscrollToTop?: boolean;
+  /**
+   * If `enableAutoscrollToTop` is true, the scroll threshold below which auto scrolling should occur.
+   */
+  autoscrollToTopThreshold?: number;
+  /** Scroll distance from beginning of list, when onStartReached should be called. */
   onStartReachedThreshold?: number;
+  /**
+   * Scroll distance from end of list, when onStartReached should be called.
+   * Please note that this is different from onEndReachedThreshold of FlatList from react-native.
+   */
   onEndReachedThreshold?: number;
+  /** If true, inline loading indicators will be shown. Default - true */
   showDefaultLoadingIndicators?: boolean;
+  /** Custom UI component for header inline loading indicator */
   HeaderLoadingIndicator?: React.ComponentType;
+  /** Custom UI component for footer inline loading indicator */
   FooterLoadingIndicator?: React.ComponentType;
+  /** Custom UI component for header indicator of FlatList. Only used when `showDefaultLoadingIndicators` is false */
   ListHeaderComponent?: React.ComponentType;
+  /** Custom UI component for footer indicator of FlatList. Only used when `showDefaultLoadingIndicators` is false */
   ListFooterComponent?: React.ComponentType;
 };
 
@@ -42,6 +70,8 @@ const BidirectionalFlatList = <T extends any>(props: Props<T>) => {
   const {
     activityIndicatorColor = 'black',
     data,
+    enableAutoscrollToTop,
+    autoscrollToTopThreshold = 100,
     FooterLoadingIndicator,
     HeaderLoadingIndicator,
     ListHeaderComponent,
@@ -198,7 +228,9 @@ const BidirectionalFlatList = <T extends any>(props: Props<T>) => {
         onScroll={handleScroll}
         // @ts-ignore
         maintainVisibleContentPosition={{
-          autoscrollToTopThreshold: undefined,
+          autoscrollToTopThreshold: enableAutoscrollToTop
+            ? autoscrollToTopThreshold
+            : undefined,
           minIndexForVisible: 1,
         }}
       />
