@@ -1,8 +1,8 @@
 import React from 'react';
-import FlatListExample from './FlatListExample';
+import MessageListExample from './MessageListExample';
 
 const App = () => {
-  return <FlatListExample />;
+  return <MessageListExample />;
 };
 
 export default App;

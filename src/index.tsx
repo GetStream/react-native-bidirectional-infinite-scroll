@@ -15,7 +15,7 @@ const styles = StyleSheet.create({
   },
 });
 
-type Props<T> = FlatListProps<T> & {
+type Props<T> = Omit<FlatListProps<T>, 'maintainVisibleContentPosition'> & {
   /**
    * Called once when the scroll position gets close to end of list. This must return a promise.
    * You can `onEndReachedThreshold` as distance from end of list, when this function should be called.
