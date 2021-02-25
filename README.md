@@ -6,6 +6,9 @@
 
 **[** Built with ♥ at [Stream](https://getstream.io/) **]**
 
+![Vishal - Article 01](https://user-images.githubusercontent.com/11586388/109156507-38082600-7771-11eb-82c4-2ca0dec97545.png)
+
+
 [FlatList](https://reactnative.dev/docs/flatlist) by react-native only allows infinite scroll in one direction (using `onEndReached`). This package adds capability on top of FlatList to allow infinite scroll from both directions, and also maintains **smooth scroll** UX.
 
 **Features**
