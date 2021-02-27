@@ -60,6 +60,7 @@ import { FlatList } from "react-native-bidirectional-infinite-scroll";
     activityIndicatorColor={'black'} // optional
     HeaderLoadingIndicator={() => { /** Your loading indicator */ }} // optional
     FooterLoadingIndicator={() => { /** Your loading indicator */ }} // optional
+    enableAutoscrollToTop={false} // optional | default - false
     // You can use any other prop on react-native's FlatList
 />
 
