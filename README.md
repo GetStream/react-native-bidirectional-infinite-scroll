@@ -4,7 +4,7 @@
 [![Npm Package](https://img.shields.io/badge/npm--package-v0.1.0-blue)](https://www.npmjs.com/package/react-native-bidirectional-infinite-scroll)
 [![Compatibility](https://img.shields.io/badge/react--native%20--%20android%20%7C%20iOS-compatible-brightgreen)](https://reactnative.dev/)
 
-**[** Built with ♥ at [Stream](https://getstream.io/) **]**
+**[** Built with ♥ at [<strong><img src="https://i.ibb.co/3FfvvPD/unnamed-1.jpg" height="13px" /> Stream</strong>](https://getstream.io/) **]**
 
 ![Vishal - Article 01](https://user-images.githubusercontent.com/11586388/109156507-38082600-7771-11eb-82c4-2ca0dec97545.png)
 
