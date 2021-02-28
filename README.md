@@ -1,7 +1,7 @@
 # 📜 React Native Bi-directional Infinite Scroll
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/GetStream/react-native-bidirectional-infinite-scroll/blob/main/LICENSE)
-[![Npm Package](https://img.shields.io/badge/npm--package-v0.1.0-blue)](https://www.npmjs.com/package/react-native-bidirectional-infinite-scroll)
+[![Npm Package](https://img.shields.io/badge/npm--package-v0.3.0-blue)](https://www.npmjs.com/package/react-native-bidirectional-infinite-scroll)
 [![Compatibility](https://img.shields.io/badge/react--native%20--%20android%20%7C%20iOS-compatible-brightgreen)](https://reactnative.dev/)
 
 **[** Built with ♥ at [<strong>Stream</strong>](https://getstream.io/) **]**
