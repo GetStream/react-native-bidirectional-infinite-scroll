@@ -10,7 +10,7 @@
 
 ![Vishal - Article 01](https://user-images.githubusercontent.com/11586388/109156507-38082600-7771-11eb-82c4-2ca0dec97545.png)
 
-## Complete Tutorial on how to imeplement Chat UI with bidirectional infinite scroll
+## Tutorial on how to imeplement Chat UI with bidirectional infinite scroll
 
 https://dev.to/vishalnarkhede/react-native-how-to-build-bidirectional-infinite-scroll-32ph
 
