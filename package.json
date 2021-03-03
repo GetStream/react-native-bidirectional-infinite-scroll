@@ -70,7 +70,8 @@
   },
   "peerDependencies": {
     "react": "*",
-    "react-native": "*"
+    "react-native": "*",
+    "@stream-io/flat-list-mvcp": "*"
   },
   "jest": {
     "preset": "react-native",
