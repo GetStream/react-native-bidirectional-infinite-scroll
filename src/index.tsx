@@ -145,7 +145,7 @@ const BidirectionalFlatList = React.forwardRef(
       const p = () => {
         return new Promise<void>((resolve) => {
           onStartReachedInPromise.current = null;
-          setOnStartReachedInProgress(false);
+          setOnEndReachedInProgress(false);
           resolve();
         });
       };
