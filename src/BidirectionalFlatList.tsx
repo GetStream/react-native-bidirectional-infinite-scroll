@@ -16,7 +16,10 @@ const styles = StyleSheet.create({
   },
 });
 
-type Props<T> = Omit<FlatListProps<T>, 'maintainVisibleContentPosition'> & {
+export type Props<T> = Omit<
+  FlatListProps<T>,
+  'maintainVisibleContentPosition'
+> & {
   /**
    * Called once when the scroll position gets close to end of list. This must return a promise.
    * You can `onEndReachedThreshold` as distance from end of list, when this function should be called.
@@ -27,7 +30,7 @@ type Props<T> = Omit<FlatListProps<T>, 'maintainVisibleContentPosition'> & {
    * You can `onStartReachedThreshold` as distance from beginning of list, when this function should be called.
    */
   onStartReached: () => Promise<void>;
-  /** Color or inline loading indicator */
+  /** Color for inline loading indicator */
   activityIndicatorColor?: string;
   /**
    * Enable autoScrollToTop.
@@ -56,7 +59,6 @@ type Props<T> = Omit<FlatListProps<T>, 'maintainVisibleContentPosition'> & {
   /** Custom UI component for footer indicator of FlatList. Only used when `showDefaultLoadingIndicators` is false */
   ListFooterComponent?: React.ComponentType;
 };
-
 /**
  * Note:
  * - `onEndReached` and `onStartReached` must return a promise.
@@ -67,20 +69,19 @@ type Props<T> = Omit<FlatListProps<T>, 'maintainVisibleContentPosition'> & {
  * - doesn't accept `ListHeaderComponent` via prop, since it is occupied by `HeaderLoadingIndicator`
  *    Set `showDefaultLoadingIndicators` to use `ListHeaderComponent`.
  */
-const BidirectionalFlatList = React.forwardRef(
-  (
-    // TODO: Fix typescript generics for ref forwarding.
-    props: Props<any>,
+export const BidirectionalFlatList = (React.forwardRef(
+  <T extends any>(
+    props: Props<T>,
     ref:
-      | ((instance: FlatListType | null) => void)
-      | MutableRefObject<FlatListType | null>
+      | ((instance: FlatListType<T> | null) => void)
+      | MutableRefObject<FlatListType<T> | null>
       | null
   ) => {
     const {
       activityIndicatorColor = 'black',
+      autoscrollToTopThreshold = 100,
       data,
       enableAutoscrollToTop,
-      autoscrollToTopThreshold = 100,
       FooterLoadingIndicator,
       HeaderLoadingIndicator,
       ListHeaderComponent,
@@ -227,7 +228,7 @@ const BidirectionalFlatList = React.forwardRef(
 
     return (
       <>
-        <FlatList
+        <FlatList<T>
           {...props}
           ref={ref}
           progressViewOffset={50}
@@ -235,7 +236,6 @@ const BidirectionalFlatList = React.forwardRef(
           ListFooterComponent={renderFooterLoadingIndicator}
           onEndReached={null}
           onScroll={handleScroll}
-          // @ts-ignore
           maintainVisibleContentPosition={{
             autoscrollToTopThreshold: enableAutoscrollToTop
               ? autoscrollToTopThreshold
@@ -246,6 +246,8 @@ const BidirectionalFlatList = React.forwardRef(
       </>
     );
   }
-);
+) as unknown) as BidirectionalFlatListType;
 
-export { BidirectionalFlatList as FlatList };
+type BidirectionalFlatListType = <T extends any>(
+  props: Props<T>
+) => React.ReactElement;
