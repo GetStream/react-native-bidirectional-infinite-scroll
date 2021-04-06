@@ -1,16 +1,7 @@
-# 📜 React Native Bi-directional Infinite Scroll
-
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/GetStream/react-native-bidirectional-infinite-scroll/blob/main/LICENSE)
-[![NPM](https://img.shields.io/npm/v/react-native-bidirectional-infinite-scroll.svg)](https://www.npmjs.com/package/react-native-bidirectional-infinite-scroll)
-[![Compatibility](https://img.shields.io/badge/react--native%20--%20android%20%7C%20iOS-compatible-brightgreen)](https://reactnative.dev/)
-
-**Implement bidirectional infinite smooth scroll using React Native**
-
-**[** Built with ♥ at [<strong>Stream</strong>](https://getstream.io/) **]**
-
-![Vishal - Article 01](https://user-images.githubusercontent.com/11586388/109156507-38082600-7771-11eb-82c4-2ca0dec97545.png)
-
-## Introduction
+---
+title: Introduction
+slug: /
+---
 
 [FlatList](https://reactnative.dev/docs/flatlist) by react-native only allows infinite scroll in one direction (using `onEndReached`). This package adds capability on top of FlatList to allow infinite scroll from both directions, and also maintains **smooth scroll** UX.
 
@@ -35,15 +26,3 @@
     </td>
   </tr>
 </table>
-
-## 🛠 Installation and Usage
-
-Please check the complete docs at https://getstream.github.io/react-native-bidirectional-infinite-scroll/
-
-## ✍ Contributing
-
-See the [contributing guide](CONTRIBUTING.md) to learn how to contribute to the repository and the development workflow.
-
-## 🎗 License
-
-MIT
