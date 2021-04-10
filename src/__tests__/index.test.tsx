@@ -1,1 +1,1 @@
-it.todo('write a test');
+test.todo('write a test');

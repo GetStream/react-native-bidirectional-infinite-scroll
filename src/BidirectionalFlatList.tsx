@@ -1,13 +1,19 @@
-import React, { MutableRefObject, useRef, useState } from 'react';
+import React, {
+  MutableRefObject,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react';
 import {
   ActivityIndicator,
   FlatList as FlatListType,
-  FlatListProps,
-  ScrollViewProps,
   StyleSheet,
   View,
 } from 'react-native';
-import { FlatList } from '@stream-io/flat-list-mvcp';
+
+import { Virtuoso, VirtuosoHandle, VirtuosoProps } from 'react-virtuoso';
+import type { Props } from './types';
 
 const styles = StyleSheet.create({
   indicatorContainer: {
@@ -16,49 +22,6 @@ const styles = StyleSheet.create({
   },
 });
 
-export type Props<T> = Omit<
-  FlatListProps<T>,
-  'maintainVisibleContentPosition'
-> & {
-  /**
-   * Called once when the scroll position gets close to end of list. This must return a promise.
-   * You can `onEndReachedThreshold` as distance from end of list, when this function should be called.
-   */
-  onEndReached: () => Promise<void>;
-  /**
-   * Called once when the scroll position gets close to begining of list. This must return a promise.
-   * You can `onStartReachedThreshold` as distance from beginning of list, when this function should be called.
-   */
-  onStartReached: () => Promise<void>;
-  /** Color for inline loading indicator */
-  activityIndicatorColor?: string;
-  /**
-   * Enable autoScrollToTop.
-   * In chat type applications, you want to auto scroll to bottom, when new message comes it.
-   */
-  enableAutoscrollToTop?: boolean;
-  /**
-   * If `enableAutoscrollToTop` is true, the scroll threshold below which auto scrolling should occur.
-   */
-  autoscrollToTopThreshold?: number;
-  /** Scroll distance from beginning of list, when onStartReached should be called. */
-  onStartReachedThreshold?: number;
-  /**
-   * Scroll distance from end of list, when onStartReached should be called.
-   * Please note that this is different from onEndReachedThreshold of FlatList from react-native.
-   */
-  onEndReachedThreshold?: number;
-  /** If true, inline loading indicators will be shown. Default - true */
-  showDefaultLoadingIndicators?: boolean;
-  /** Custom UI component for header inline loading indicator */
-  HeaderLoadingIndicator?: React.ComponentType;
-  /** Custom UI component for footer inline loading indicator */
-  FooterLoadingIndicator?: React.ComponentType;
-  /** Custom UI component for header indicator of FlatList. Only used when `showDefaultLoadingIndicators` is false */
-  ListHeaderComponent?: React.ComponentType;
-  /** Custom UI component for footer indicator of FlatList. Only used when `showDefaultLoadingIndicators` is false */
-  ListFooterComponent?: React.ComponentType;
-};
 /**
  * Note:
  * - `onEndReached` and `onStartReached` must return a promise.
@@ -69,8 +32,9 @@ export type Props<T> = Omit<
  * - doesn't accept `ListHeaderComponent` via prop, since it is occupied by `HeaderLoadingIndicator`
  *    Set `showDefaultLoadingIndicators` to use `ListHeaderComponent`.
  */
+// eslint-disable-next-line react/display-name
 export const BidirectionalFlatList = (React.forwardRef(
-  <T extends any>(
+  <T extends unknown>(
     props: Props<T>,
     ref:
       | ((instance: FlatListType<T> | null) => void)
@@ -78,176 +42,255 @@ export const BidirectionalFlatList = (React.forwardRef(
       | null
   ) => {
     const {
-      activityIndicatorColor = 'black',
-      autoscrollToTopThreshold = 100,
+      activityIndicatorColor,
+      autoscrollToTopThreshold = 50,
       data,
-      enableAutoscrollToTop,
+      enableAutoscrollToTop = false,
       FooterLoadingIndicator,
       HeaderLoadingIndicator,
-      ListHeaderComponent,
+      initialScrollIndex: propInitialScrollIndex,
+      inverted,
+      ItemSeparatorComponent,
+      ListEmptyComponent,
       ListFooterComponent,
-      onEndReached = () => Promise.resolve(),
-      onEndReachedThreshold = 10,
+      ListHeaderComponent,
+      onEndReached,
       onScroll,
-      onStartReached = () => Promise.resolve(),
-      onStartReachedThreshold = 10,
+      onStartReached,
+      renderItem,
       showDefaultLoadingIndicators = true,
     } = props;
+
+    const initialScrollIndex = propInitialScrollIndex
+      ? propInitialScrollIndex
+      : 0;
+    const virtuosoRef = useRef<VirtuosoHandle>(null);
+    const offsetFromBottom = useRef(1000000);
+    const prependingItems = useRef(false);
+    const appendingItems = useRef(false);
+
     const [onStartReachedInProgress, setOnStartReachedInProgress] = useState(
       false
     );
     const [onEndReachedInProgress, setOnEndReachedInProgress] = useState(false);
 
-    const onStartReachedTracker = useRef<Record<number, boolean>>({});
-    const onEndReachedTracker = useRef<Record<number, boolean>>({});
+    const [vData, setVDate] = useState(data);
+    const firstItemIndex = useRef(0);
+    const previousDataLength = useRef(data?.length || 0);
 
-    const onStartReachedInPromise = useRef<Promise<void> | null>(null);
-    const onEndReachedInPromise = useRef<Promise<void> | null>(null);
-
-    const maybeCallOnStartReached = () => {
-      // If onStartReached has already been called for given data length, then ignore.
-      if (data?.length && onStartReachedTracker.current[data.length]) {
-        return;
-      }
-
-      if (data?.length) {
-        onStartReachedTracker.current[data.length] = true;
-      }
-
+    const startReached = () => {
+      if (prependingItems.current) return;
+      prependingItems.current = true;
       setOnStartReachedInProgress(true);
-      const p = () => {
-        return new Promise<void>((resolve) => {
-          onStartReachedInPromise.current = null;
-          setOnStartReachedInProgress(false);
-          resolve();
-        });
-      };
-
-      if (onEndReachedInPromise.current) {
-        onEndReachedInPromise.current.finally(() => {
-          onStartReachedInPromise.current = onStartReached().then(p);
-        });
+      if (inverted) {
+        onEndReached();
       } else {
-        onStartReachedInPromise.current = onStartReached().then(p);
+        onStartReached();
       }
     };
 
-    const maybeCallOnEndReached = () => {
-      // If onEndReached has already been called for given data length, then ignore.
-      if (data?.length && onEndReachedTracker.current[data.length]) {
-        return;
-      }
-
-      if (data?.length) {
-        onEndReachedTracker.current[data.length] = true;
-      }
-
+    const endReached = () => {
+      appendingItems.current = true;
       setOnEndReachedInProgress(true);
-      const p = () => {
-        return new Promise<void>((resolve) => {
-          onStartReachedInPromise.current = null;
-          setOnEndReachedInProgress(false);
-          resolve();
-        });
+      if (inverted) {
+        onStartReached();
+      } else {
+        onEndReached();
+      }
+    };
+
+    useEffect(() => {
+      const updateVirtuoso = () => {
+        if (!data?.length) {
+          return;
+        }
+
+        let nextFirstItemIndex = firstItemIndex.current;
+        if (prependingItems.current === true) {
+          nextFirstItemIndex =
+            firstItemIndex.current - (data.length - previousDataLength.current);
+        }
+
+        prependingItems.current = false;
+        previousDataLength.current = data.length;
+
+        firstItemIndex.current = nextFirstItemIndex;
+        setVDate(() => data);
+
+        if (
+          enableAutoscrollToTop &&
+          offsetFromBottom.current < autoscrollToTopThreshold
+        ) {
+          setTimeout(() => {
+            virtuosoRef.current?.scrollToIndex({
+              behavior: 'smooth',
+              index: data.length,
+            });
+          }, 0);
+        }
       };
 
-      if (onStartReachedInPromise.current) {
-        onStartReachedInPromise.current.finally(() => {
-          onEndReachedInPromise.current = onEndReached().then(p);
-        });
-      } else {
-        onEndReachedInPromise.current = onEndReached().then(p);
-      }
+      updateVirtuoso();
+    }, [enableAutoscrollToTop, autoscrollToTopThreshold, data, setVDate]);
+
+    const Footer = () =>
+      ListFooterComponent ? (
+        <ListFooterComponent />
+      ) : onEndReachedInProgress ? (
+        FooterLoadingIndicator ? (
+          <FooterLoadingIndicator />
+        ) : showDefaultLoadingIndicators ? (
+          <View style={styles.indicatorContainer}>
+            <ActivityIndicator color={activityIndicatorColor} size={'small'} />
+          </View>
+        ) : null
+      ) : null;
+
+    const Header = () =>
+      ListHeaderComponent ? (
+        <ListHeaderComponent />
+      ) : onStartReachedInProgress ? (
+        HeaderLoadingIndicator ? (
+          <HeaderLoadingIndicator />
+        ) : showDefaultLoadingIndicators ? (
+          <View style={styles.indicatorContainer}>
+            <ActivityIndicator color={activityIndicatorColor} size={'small'} />
+          </View>
+        ) : null
+      ) : null;
+
+    const handleScroll: VirtuosoProps<unknown>['onScroll'] = (e) => {
+      const targetElem = e.target;
+      offsetFromBottom.current =
+        // @ts-ignore
+        targetElem.scrollHeight -
+        // @ts-ignore
+        (targetElem.scrollTop + targetElem.clientHeight);
+
+      // @ts-ignore
+      onScroll?.(e);
     };
 
-    const handleScroll: ScrollViewProps['onScroll'] = (event) => {
-      // Call the parent onScroll handler, if provided.
-      onScroll?.(event);
-
-      const offset = event.nativeEvent.contentOffset.y;
-      const visibleLength = event.nativeEvent.layoutMeasurement.height;
-      const contentLength = event.nativeEvent.contentSize.height;
-
-      // Check if scroll has reached either start of end of list.
-      const isScrollAtStart = offset < onStartReachedThreshold;
-      const isScrollAtEnd =
-        contentLength - visibleLength - offset < onEndReachedThreshold;
-
-      if (isScrollAtStart) {
-        maybeCallOnStartReached();
+    const itemContent = (index: number) => {
+      if (!renderItem) {
+        console.warn('Please specify renderItem prop');
+        return null;
       }
 
-      if (isScrollAtEnd) {
-        maybeCallOnEndReached();
-      }
-    };
-
-    const renderHeaderLoadingIndicator = () => {
-      if (!showDefaultLoadingIndicators) {
-        if (ListHeaderComponent) {
-          return <ListHeaderComponent />;
-        } else {
-          return null;
-        }
+      if (!vData) {
+        return null;
       }
 
-      if (!onStartReachedInProgress) return null;
-
-      if (HeaderLoadingIndicator) {
-        return <HeaderLoadingIndicator />;
-      }
+      const indexInData = inverted
+        ? vData.length - 1 - (index + Math.abs(firstItemIndex.current))
+        : index + Math.abs(firstItemIndex.current);
 
       return (
-        <View style={styles.indicatorContainer}>
-          <ActivityIndicator size={'small'} color={activityIndicatorColor} />
-        </View>
+        <>
+          {/* @ts-ignore */}
+          {renderItem({ index, item: vData[indexInData] })}
+          {indexInData !== vData.length && !!ItemSeparatorComponent && (
+            <ItemSeparatorComponent />
+          )}
+        </>
       );
     };
 
-    const renderFooterLoadingIndicator = () => {
-      if (!showDefaultLoadingIndicators) {
-        if (ListFooterComponent) {
-          return <ListFooterComponent />;
-        } else {
-          return null;
-        }
-      }
+    useImperativeHandle(
+      ref,
+      () => ({
+        flashScrollIndicators: () => null,
+        getNativeScrollRef: () => null,
+        getScrollableNode: () => null,
+        getScrollResponder: () => null,
+        recordInteraction: () => null,
+        // @ts-ignore
+        scrollToEnd: ({ animated }: { animated?: boolean | null }) => {
+          if (!vData?.length) return;
 
-      if (!onEndReachedInProgress) return null;
+          // eslint-disable-next-line babel/no-unused-expressions
+          inverted
+            ? virtuosoRef.current?.scrollToIndex({
+                behavior: animated ? 'smooth' : 'auto',
+                index: 0,
+              })
+            : virtuosoRef.current?.scrollToIndex({
+                behavior: animated ? 'smooth' : 'auto',
+                index: vData.length - 1,
+              });
+        },
+        scrollToIndex: ({
+          animated,
+          index,
+        }: {
+          index: number;
+          animated?: boolean | null;
+        }) => {
+          if (!vData) {
+            return;
+          }
 
-      if (FooterLoadingIndicator) {
-        return <FooterLoadingIndicator />;
-      }
+          // eslint-disable-next-line babel/no-unused-expressions
+          inverted
+            ? virtuosoRef.current?.scrollToIndex({
+                behavior: animated ? 'smooth' : 'auto',
+                index: vData.length - 1 - index,
+              })
+            : virtuosoRef.current?.scrollToIndex({
+                behavior: animated ? 'smooth' : 'auto',
+                index,
+              });
+        },
+        scrollToItem: ({
+          animated,
+          item,
+        }: {
+          item: T;
+          animated?: boolean | null;
+        }) => {
+          if (!vData) {
+            return;
+          }
 
-      return (
-        <View style={styles.indicatorContainer}>
-          <ActivityIndicator size={'small'} color={activityIndicatorColor} />
-        </View>
-      );
-    };
+          const index = vData.findIndex((d) => d === item);
+          virtuosoRef.current?.scrollToIndex({
+            behavior: animated ? 'smooth' : 'auto',
+            index,
+          });
+        },
+        scrollToOffset: () => null,
+        setNativeProps: () => null,
+      }),
+      [virtuosoRef, inverted, vData]
+    );
+
+    if (!vData?.length || vData?.length === 0) {
+      // @ts-ignore
+      return <ListEmptyComponent />;
+    }
 
     return (
-      <>
-        <FlatList<T>
-          {...props}
-          ref={ref}
-          progressViewOffset={50}
-          ListHeaderComponent={renderHeaderLoadingIndicator}
-          ListFooterComponent={renderFooterLoadingIndicator}
-          onEndReached={null}
-          onScroll={handleScroll}
-          maintainVisibleContentPosition={{
-            autoscrollToTopThreshold: enableAutoscrollToTop
-              ? autoscrollToTopThreshold
-              : undefined,
-            minIndexForVisible: 1,
-          }}
-        />
-      </>
+      <Virtuoso<T>
+        components={{
+          Footer,
+          Header,
+        }}
+        endReached={endReached}
+        firstItemIndex={firstItemIndex.current}
+        followOutput={enableAutoscrollToTop ? 'smooth' : false}
+        initialTopMostItemIndex={
+          inverted ? vData.length - 1 - initialScrollIndex : initialScrollIndex
+        }
+        itemContent={itemContent}
+        onScroll={handleScroll}
+        ref={virtuosoRef}
+        startReached={startReached}
+        totalCount={vData.length}
+      />
     );
   }
 ) as unknown) as BidirectionalFlatListType;
 
-type BidirectionalFlatListType = <T extends any>(
+type BidirectionalFlatListType = <T extends unknown>(
   props: Props<T>
 ) => React.ReactElement;
