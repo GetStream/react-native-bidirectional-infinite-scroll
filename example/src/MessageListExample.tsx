@@ -1,15 +1,27 @@
-import React, { useEffect, useState } from 'react';
-import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { FlatList } from 'react-native-bidirectional-infinite-scroll';
-import { MessageBubble } from './MessageBubble';
-import { Message, queryMoreMessages } from './utils';
+import { ActivityItem } from './ActivityItem';
+import { queryMoreMessages } from './utils';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import type { Message } from './utils';
 
 const App = () => {
   const [messages, setMessages] = useState<Array<Message>>([]);
+  const viewConfigRef = useRef({
+    itemVisiblePercentThreshold: 90,
+    minimumViewTime: 200,
+  });
   useEffect(() => {
     const initChat = async () => {
-      const initialMessages = await queryMoreMessages(50);
+      const initialMessages = await queryMoreMessages(30);
       if (!initialMessages) return;
 
       setMessages(initialMessages);
@@ -43,10 +55,14 @@ const App = () => {
       </View>
       <FlatList
         data={messages}
-        inverted
         onEndReached={loadMoreOlderMessages}
         onStartReached={loadMoreRecentMessages}
-        renderItem={MessageBubble}
+        renderItem={ActivityItem}
+        viewabilityConfig={viewConfigRef.current}
+        scrollEventThrottle={20}
+        bounces={false}
+        numColumns={1}
+        ListFooterComponent={() => <ActivityIndicator size="large" />}
       />
     </SafeAreaView>
   );
@@ -62,6 +78,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 20, fontWeight: 'bold' },
   safeArea: {
     flex: 1,
+    backgroundColor: '#b478ed',
   },
   sendMessageButton: {
     width: '100%',
