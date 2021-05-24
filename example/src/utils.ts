@@ -53,7 +53,7 @@ export const queryMoreMessages: (n: number, before: number | null, after: number
       // Lets resolve after 500 ms, to simulate network latency.
       setTimeout(() => {
         resolve(newMessages);
-      }, 2000);
+      }, 500);
   });
 };
 
