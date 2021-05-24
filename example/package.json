@@ -10,13 +10,21 @@
   },
   "dependencies": {
     "@stream-io/flat-list-mvcp": "0.10.0",
+    "expo": "^40.0.1",
     "react": "16.13.1",
+    "react-dom": "^17.0.2",
     "react-native": "0.63.4",
-    "react-native-bidirectional-infinite-scroll": "link:../"
+    "react-native-bidirectional-infinite-scroll": "link:../",
+    "react-native-web": "^0.15.6",
+    "react-virtuoso": "^1.6.0"
   },
   "devDependencies": {
     "@babel/core": "^7.12.10",
+    "@babel/preset-typescript": "^7.13.0",
     "@babel/runtime": "^7.12.5",
+    "@types/react": "^17.0.3",
+    "@types/react-dom": "^17.0.3",
+    "@types/react-native": "^0.64.2",
     "babel-plugin-module-resolver": "^4.0.0",
     "metro-react-native-babel-preset": "^0.64.0"
   }

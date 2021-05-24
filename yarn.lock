@@ -3598,9 +3598,9 @@ core-js@^2.4.1:
   integrity sha512-Kb2wC0fvsWfQrgk8HU5lW6U/Lcs8+9aaYcy4ZFc6DDlo4nZ7n70dEgE5rtR0oG6ufKDUnrwfWL1mXR5ljDatrQ==
 
 core-js@^3.5.0, core-js@^3.6.1:
-  version "3.10.1"
-  resolved "https://registry.yarnpkg.com/core-js/-/core-js-3.10.1.tgz#e683963978b6806dcc6c0a4a8bd4ab0bdaf3f21a"
-  integrity sha512-pwCxEXnj27XG47mu7SXAwhLP3L5CrlvCB91ANUkIz40P27kUcvNfSdvyZJ9CLHiVoKSp+TTChMQMSKQEH/IQxA==
+  version "3.10.0"
+  resolved "https://registry.yarnpkg.com/core-js/-/core-js-3.10.0.tgz#9a020547c8b6879f929306949e31496bbe2ae9b3"
+  integrity sha512-MQx/7TLgmmDVamSyfE+O+5BHvG1aUGj/gHhLn1wVtm2B5u1eVIPvh7vkfjwWKNCjrTJB8+He99IntSQ1qP+vYQ==
 
 core-util-is@1.0.2, core-util-is@~1.0.0:
   version "1.0.2"
@@ -8335,9 +8335,9 @@ react-refresh@^0.4.0:
   integrity sha512-Hwln1VNuGl/6bVwnd0Xdn1e84gT/8T9aYNL+HAKDArLCS7LWjwr7StE30IEYbIkx0Vi3vs+coQxe+SQDbGbbpA==
 
 react-virtuoso@^1.6.0:
-  version "1.7.1"
-  resolved "https://registry.yarnpkg.com/react-virtuoso/-/react-virtuoso-1.7.1.tgz#482ae71d6a26baee5e60c4d6714a2eded3671804"
-  integrity sha512-hAhu9jPo39Bf8In5b3tXbjtSDf0KqqOKWscExb/DEk0+lULNVqepusv4u3W/lKWwcwy5ImxeaoBAxjE8ncXffg==
+  version "1.6.0"
+  resolved "https://registry.yarnpkg.com/react-virtuoso/-/react-virtuoso-1.6.0.tgz#77fa579238dd7600f4e112e54df10752d7fb9f3d"
+  integrity sha512-JOuptWMYWsJq4yZnZO5B2R0eUyDnOnpVjmbxDSK3bLs5v8Ve898K3avyjQmI+5glXUoj9eLn2eeixDEzHYDZJg==
   dependencies:
     "@virtuoso.dev/react-urx" "^0.2.5"
     "@virtuoso.dev/urx" "^0.2.5"
