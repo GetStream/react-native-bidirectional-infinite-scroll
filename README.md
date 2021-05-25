@@ -14,11 +14,10 @@
 
 [FlatList](https://reactnative.dev/docs/flatlist) by react-native only allows infinite scroll in one direction (using `onEndReached`). This package adds capability on top of FlatList to allow infinite scroll from both directions, and also maintains **smooth scroll** UX.
 
-- Accepts prop `onStartReached` & `onEndReached`, which you can use to load more results. 
+- Accepts prop `onStartReached` & `onEndReached`, which you can use to load more results.
 - Calls to onEndReached and onStartReached have been optimized.
 - Inline loading Indicators, which can be customized as well.
 - Uses [flat-list-mvcp](https://github.com/GetStream/flat-list-mvcp#maintainvisiblecontentposition-prop-support-for-android-react-native) to maintain scroll position or smooth scroll UX.
-
 
 <table>
   <tr>
