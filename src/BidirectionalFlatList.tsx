@@ -37,7 +37,7 @@ const styles = StyleSheet.create({
 const waiter = () => new Promise((resolve) => setTimeout(resolve, 500));
 const dampingFactor = 5;
 const pullToRefreshReleaseThreshold = 100;
-
+const EmptyFunction = () => null;
 /**
  * Note:
  * - `onEndReached` and `onStartReached` must return a promise.
@@ -76,6 +76,7 @@ export const BidirectionalFlatList = (React.forwardRef(
       onScroll,
       onStartReached,
       onStartReachedThreshold = 300,
+      refreshing,
       renderItem,
       showDefaultLoadingIndicators = true,
     } = props;
@@ -101,13 +102,24 @@ export const BidirectionalFlatList = (React.forwardRef(
     const lastYValue = useRef(0);
     const panResponderActive = useRef(false);
     const onRefreshRef = useRef(onRefresh);
-    const simulateRefreshAction = useRef(async () => {
+    const stopRefreshAction = useRef(() => {
+      fadeAnimation.setValue(0);
+      Animated.spring(pan, {
+        toValue: { x: 0, y: 0 },
+        useNativeDriver: true,
+      }).start();
+    });
+    const startRefreshAction = useRef(async () => {
       if (!scrollerRef.current) return;
+      fadeAnimation.setValue(1);
+      Animated.spring(pan, {
+        toValue: { x: 0, y: 30 },
+        useNativeDriver: true,
+      }).start();
 
       prependingItems.current = true;
       await waiter();
       await onRefreshRef.current?.();
-      scrollerRef.current.style.overflow = 'auto';
 
       Animated.spring(pan, {
         toValue: { x: 0, y: 0 },
@@ -118,9 +130,6 @@ export const BidirectionalFlatList = (React.forwardRef(
     });
 
     const resetPanHandlerAndScroller = () => {
-      if (scrollerRef.current) {
-        scrollerRef.current.style.overflow = 'auto';
-      }
       panResponderActive.current = false;
     };
 
@@ -200,7 +209,6 @@ export const BidirectionalFlatList = (React.forwardRef(
           }
 
           panResponderActive.current = true;
-          // scrollerRef.current.style.overflow = 'hidden';
           pan.setValue({
             x: 0,
             y: lastYValue.current + gestureState.dy / dampingFactor,
@@ -227,19 +235,9 @@ export const BidirectionalFlatList = (React.forwardRef(
               pullToRefreshReleaseThreshold &&
             offsetFromTop.current <= 0
           ) {
-            fadeAnimation.setValue(1);
-            Animated.spring(pan, {
-              toValue: { x: 0, y: 30 },
-              useNativeDriver: true,
-            }).start();
-
-            simulateRefreshAction.current?.();
+            startRefreshAction.current();
           } else {
-            fadeAnimation.setValue(0);
-            Animated.spring(pan, {
-              toValue: { x: 0, y: 0 },
-              useNativeDriver: true,
-            }).start();
+            stopRefreshAction.current();
           }
         },
       })
@@ -314,9 +312,9 @@ export const BidirectionalFlatList = (React.forwardRef(
               index,
               item: vData[indexInData],
               separators: {
-                highlight: () => null,
-                unhighlight: () => null,
-                updateProps: () => null,
+                highlight: EmptyFunction,
+                unhighlight: EmptyFunction,
+                updateProps: EmptyFunction,
               },
             })}
             {indexInData !== vData.length && !!ItemSeparatorComponent && (
@@ -363,30 +361,30 @@ export const BidirectionalFlatList = (React.forwardRef(
       updateVirtuoso();
     }, [enableAutoscrollToTop, autoscrollToTopThreshold, data, setVDate]);
 
+    useEffect(() => {
+      if (refreshing) {
+        startRefreshAction.current();
+      }
+    }, [refreshing]);
+
     useImperativeHandle(
       ref,
       // @ts-ignore
       () => ({
-        flashScrollIndicators: () => null,
-        getNativeScrollRef: () => null,
-        getScrollableNode: () => null,
-        getScrollResponder: () => null,
-        recordInteraction: () => null,
+        flashScrollIndicators: EmptyFunction,
+        getNativeScrollRef: EmptyFunction,
+        getScrollableNode: EmptyFunction,
+        getScrollResponder: EmptyFunction,
+        recordInteraction: EmptyFunction,
         scrollToEnd: (params = { animated: true }) => {
           const { animated } = params;
           if (!vData?.length) return;
 
-          if (inverted) {
-            virtuosoRef.current?.scrollToIndex({
-              behavior: animated ? 'smooth' : 'auto',
-              index: 0,
-            });
-          } else {
-            virtuosoRef.current?.scrollToIndex({
-              behavior: animated ? 'smooth' : 'auto',
-              index: vData.length - 1,
-            });
-          }
+          const index = inverted ? 0 : vData.length - 1;
+          virtuosoRef.current?.scrollToIndex({
+            behavior: animated ? 'smooth' : 'auto',
+            index: index,
+          });
         },
         scrollToIndex: ({
           animated,
@@ -428,8 +426,8 @@ export const BidirectionalFlatList = (React.forwardRef(
             index,
           });
         },
-        scrollToOffset: () => null,
-        setNativeProps: () => null,
+        scrollToOffset: EmptyFunction,
+        setNativeProps: EmptyFunction,
       }),
       [virtuosoRef, inverted, vData]
     );
@@ -439,31 +437,31 @@ export const BidirectionalFlatList = (React.forwardRef(
     }, [onRefresh]);
 
     if (!vData?.length || vData?.length === 0) {
-      return <ListEmptyComponent />;
+      return ListEmptyComponent ? <ListEmptyComponent /> : null;
     }
 
+    const VirtuosoNode = (
+      <Virtuoso<T>
+        components={{
+          Footer,
+          Header,
+        }}
+        firstItemIndex={firstItemIndex.current}
+        initialTopMostItemIndex={
+          inverted ? vData.length - 1 - initialScrollIndex : initialScrollIndex
+        }
+        itemContent={itemContent}
+        onScroll={handleScroll}
+        overscan={300}
+        ref={virtuosoRef}
+        // @ts-ignore
+        scrollerRef={(ref) => (scrollerRef.current = ref as HTMLElement)}
+        totalCount={vData.length}
+      />
+    );
+
     if (!onRefresh) {
-      return (
-        <Virtuoso<T>
-          components={{
-            Footer,
-            Header,
-          }}
-          firstItemIndex={firstItemIndex.current}
-          initialTopMostItemIndex={
-            inverted
-              ? vData.length - 1 - initialScrollIndex
-              : initialScrollIndex
-          }
-          itemContent={itemContent}
-          onScroll={handleScroll}
-          overscan={300}
-          ref={virtuosoRef}
-          // @ts-ignore
-          scrollerRef={(ref) => (scrollerRef.current = ref)}
-          totalCount={vData.length}
-        />
-      );
+      return VirtuosoNode;
     }
 
     return (
@@ -487,24 +485,7 @@ export const BidirectionalFlatList = (React.forwardRef(
             <ActivityIndicator />
           </Animated.View>
 
-          <Virtuoso<T>
-            components={{
-              Footer,
-              Header,
-            }}
-            firstItemIndex={firstItemIndex.current}
-            initialTopMostItemIndex={
-              inverted
-                ? vData.length - 1 - initialScrollIndex
-                : initialScrollIndex
-            }
-            itemContent={itemContent}
-            onScroll={handleScroll}
-            overscan={300}
-            ref={virtuosoRef}
-            scrollerRef={(ref) => (scrollerRef.current = ref as HTMLElement)}
-            totalCount={vData.length}
-          />
+          {VirtuosoNode}
         </Animated.View>
       </>
     );
