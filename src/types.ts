@@ -6,11 +6,6 @@ export type WebFlatListProps<T> = Props<T> & {
   onScroll: (event: React.UIEvent<'div', UIEvent>) => void;
 };
 
-export type WebFlatListProps<T> = Props<T> & {
-  ListEmptyComponent: React.ComponentType;
-  onScroll: (event: React.UIEvent<'div', UIEvent>) => void;
-};
-
 export type Props<T = unknown> = Omit<
   FlatListProps<T>,
   'maintainVisibleContentPosition'

@@ -5,13 +5,6 @@ import { FlatList } from 'react-native-bidirectional-infinite-scroll';
 import { MessageBubble } from './MessageBubble';
 import { Message, queryMoreMessages } from './utils';
 
-const ItemSeparatorComponent = () => <View style={{
-  borderBottomColor: 'black',
-  height: 0,
-  borderBottomWidth: 1,
-  marginVertical: 10
-}} />;
-
 const App = () => {
   const [messages, setMessages] = useState<Array<Message>>([]);
   const flRef = useRef(null);

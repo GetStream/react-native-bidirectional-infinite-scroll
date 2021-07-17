@@ -4,6 +4,7 @@ import type { Message } from './utils';
 
 type Props = {
   item: Message;
+  index: number;
 };
 
 export const MessageBubble: React.FC<Props> = ({ item, index }) => {
