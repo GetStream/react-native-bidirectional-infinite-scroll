@@ -383,7 +383,7 @@ export const BidirectionalFlatList = (React.forwardRef(
           const index = inverted ? 0 : vData.length - 1;
           virtuosoRef.current?.scrollToIndex({
             behavior: animated ? 'smooth' : 'auto',
-            index: index,
+            index,
           });
         },
         scrollToIndex: ({
