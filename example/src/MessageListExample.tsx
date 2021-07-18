@@ -1,5 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  View,
+  FlatList as FlatListType,
+} from 'react-native';
 
 import { FlatList } from 'react-native-bidirectional-infinite-scroll';
 import { MessageBubble } from './MessageBubble';
@@ -7,6 +13,8 @@ import { Message, queryMoreMessages } from './utils';
 
 const App = () => {
   const [messages, setMessages] = useState<Array<Message>>([]);
+  const listRef = useRef<FlatListType>(null);
+
   useEffect(() => {
     const initChat = async () => {
       const initialMessages = await queryMoreMessages(50);
@@ -42,6 +50,7 @@ const App = () => {
         <Text style={styles.headerTitle}>Chat between two users</Text>
       </View>
       <FlatList
+        ref={listRef}
         data={messages}
         inverted
         onEndReached={loadMoreOlderMessages}
