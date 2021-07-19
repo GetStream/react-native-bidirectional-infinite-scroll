@@ -1,64 +1,43 @@
-import React, { MutableRefObject, useRef, useState } from 'react';
+/* eslint-disable no-underscore-dangle */
+import React, {
+  MutableRefObject,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react';
 import {
   ActivityIndicator,
+  Animated,
   FlatList as FlatListType,
-  FlatListProps,
-  ScrollViewProps,
+  PanResponder,
   StyleSheet,
   View,
 } from 'react-native';
-import { FlatList } from '@stream-io/flat-list-mvcp';
+
+import { Virtuoso, VirtuosoHandle, VirtuosoProps } from 'react-virtuoso';
+import type { Props, WebFlatListProps } from './types';
 
 const styles = StyleSheet.create({
   indicatorContainer: {
     paddingVertical: 5,
     width: '100%',
   },
+  refreshControl: {
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    position: 'absolute',
+    width: '100%',
+  },
 });
 
-export type Props<T> = Omit<
-  FlatListProps<T>,
-  'maintainVisibleContentPosition'
-> & {
-  /**
-   * Called once when the scroll position gets close to end of list. This must return a promise.
-   * You can `onEndReachedThreshold` as distance from end of list, when this function should be called.
-   */
-  onEndReached: () => Promise<void>;
-  /**
-   * Called once when the scroll position gets close to begining of list. This must return a promise.
-   * You can `onStartReachedThreshold` as distance from beginning of list, when this function should be called.
-   */
-  onStartReached: () => Promise<void>;
-  /** Color for inline loading indicator */
-  activityIndicatorColor?: string;
-  /**
-   * Enable autoScrollToTop.
-   * In chat type applications, you want to auto scroll to bottom, when new message comes it.
-   */
-  enableAutoscrollToTop?: boolean;
-  /**
-   * If `enableAutoscrollToTop` is true, the scroll threshold below which auto scrolling should occur.
-   */
-  autoscrollToTopThreshold?: number;
-  /** Scroll distance from beginning of list, when onStartReached should be called. */
-  onStartReachedThreshold?: number;
-  /**
-   * Scroll distance from end of list, when onStartReached should be called.
-   * Please note that this is different from onEndReachedThreshold of FlatList from react-native.
-   */
-  onEndReachedThreshold?: number;
-  /** If true, inline loading indicators will be shown. Default - true */
-  showDefaultLoadingIndicators?: boolean;
-  /** Custom UI component for header inline loading indicator */
-  HeaderLoadingIndicator?: React.ComponentType;
-  /** Custom UI component for footer inline loading indicator */
-  FooterLoadingIndicator?: React.ComponentType;
-  /** Custom UI component for header indicator of FlatList. Only used when `showDefaultLoadingIndicators` is false */
-  ListHeaderComponent?: React.ComponentType;
-  /** Custom UI component for footer indicator of FlatList. Only used when `showDefaultLoadingIndicators` is false */
-  ListFooterComponent?: React.ComponentType;
-};
+const waiter = () => new Promise((resolve) => setTimeout(resolve, 500));
+const dampingFactor = 5;
+const pullToRefreshReleaseThreshold = 100;
+const EmptyFunction = () => null;
 /**
  * Note:
  * - `onEndReached` and `onStartReached` must return a promise.
@@ -69,185 +48,450 @@ export type Props<T> = Omit<
  * - doesn't accept `ListHeaderComponent` via prop, since it is occupied by `HeaderLoadingIndicator`
  *    Set `showDefaultLoadingIndicators` to use `ListHeaderComponent`.
  */
+// eslint-disable-next-line react/display-name
 export const BidirectionalFlatList = (React.forwardRef(
-  <T extends any>(
-    props: Props<T>,
+  <T extends unknown>(
+    props: WebFlatListProps<T>,
     ref:
       | ((instance: FlatListType<T> | null) => void)
       | MutableRefObject<FlatListType<T> | null>
       | null
   ) => {
     const {
-      activityIndicatorColor = 'black',
-      autoscrollToTopThreshold = 100,
+      activityIndicatorColor,
+      autoscrollToTopThreshold = 50,
       data,
-      enableAutoscrollToTop,
+      enableAutoscrollToTop = false,
       FooterLoadingIndicator,
       HeaderLoadingIndicator,
-      ListHeaderComponent,
+      initialScrollIndex: propInitialScrollIndex,
+      inverted,
+      ItemSeparatorComponent,
+      ListEmptyComponent,
       ListFooterComponent,
-      onEndReached = () => Promise.resolve(),
-      onEndReachedThreshold = 10,
+      ListHeaderComponent,
+      onEndReached,
+      onEndReachedThreshold = 300,
+      onRefresh,
       onScroll,
-      onStartReached = () => Promise.resolve(),
-      onStartReachedThreshold = 10,
+      onStartReached,
+      onStartReachedThreshold = 300,
+      refreshing,
+      renderItem,
       showDefaultLoadingIndicators = true,
     } = props;
+
+    const initialScrollIndex = propInitialScrollIndex
+      ? propInitialScrollIndex
+      : 0;
+    const virtuosoRef = useRef<VirtuosoHandle>(null);
+    const scrollerRef = useRef<HTMLElement | null>(null);
+    const offsetFromBottom = useRef(1000000);
+    const offsetFromTop = useRef(0);
+    const prependingItems = useRef(false);
+    const appendingItems = useRef(false);
     const [onStartReachedInProgress, setOnStartReachedInProgress] = useState(
       false
     );
     const [onEndReachedInProgress, setOnEndReachedInProgress] = useState(false);
+    const [vData, setVDate] = useState(data);
+    const firstItemIndex = useRef(0);
+    const previousDataLength = useRef(data?.length || 0);
+    const fadeAnimation = useRef(new Animated.Value(0)).current;
+    const pan = useRef(new Animated.ValueXY()).current;
+    const lastYValue = useRef(0);
+    const panResponderActive = useRef(false);
+    const onRefreshRef = useRef(onRefresh);
+    const stopRefreshAction = useRef(() => {
+      fadeAnimation.setValue(0);
+      Animated.spring(pan, {
+        toValue: { x: 0, y: 0 },
+        useNativeDriver: true,
+      }).start();
+    });
+    const startRefreshAction = useRef(async () => {
+      if (!scrollerRef.current) return;
+      fadeAnimation.setValue(1);
+      Animated.spring(pan, {
+        toValue: { x: 0, y: 30 },
+        useNativeDriver: true,
+      }).start();
 
-    const onStartReachedTracker = useRef<Record<number, boolean>>({});
-    const onEndReachedTracker = useRef<Record<number, boolean>>({});
+      prependingItems.current = true;
+      await waiter();
+      await onRefreshRef.current?.();
 
-    const onStartReachedInPromise = useRef<Promise<void> | null>(null);
-    const onEndReachedInPromise = useRef<Promise<void> | null>(null);
+      Animated.spring(pan, {
+        toValue: { x: 0, y: 0 },
+        useNativeDriver: true,
+      }).start();
 
-    const maybeCallOnStartReached = () => {
-      // If onStartReached has already been called for given data length, then ignore.
-      if (data?.length && onStartReachedTracker.current[data.length]) {
+      fadeAnimation.setValue(0);
+    });
+
+    const resetPanHandlerAndScroller = () => {
+      panResponderActive.current = false;
+    };
+
+    const startReached = async () => {
+      if (
+        !onStartReached ||
+        prependingItems.current ||
+        onStartReachedInProgress ||
+        (inverted && !onEndReached) ||
+        (!inverted && !onStartReached)
+      ) {
         return;
       }
 
-      if (data?.length) {
-        onStartReachedTracker.current[data.length] = true;
-      }
-
+      prependingItems.current = true;
       setOnStartReachedInProgress(true);
-      const p = () => {
-        return new Promise<void>((resolve) => {
-          onStartReachedInPromise.current = null;
-          setOnStartReachedInProgress(false);
-          resolve();
-        });
-      };
 
-      if (onEndReachedInPromise.current) {
-        onEndReachedInPromise.current.finally(() => {
-          onStartReachedInPromise.current = onStartReached().then(p);
-        });
+      if (inverted) {
+        await onEndReached?.();
       } else {
-        onStartReachedInPromise.current = onStartReached().then(p);
+        await onStartReached?.();
       }
+      setOnStartReachedInProgress(false);
     };
 
-    const maybeCallOnEndReached = () => {
-      // If onEndReached has already been called for given data length, then ignore.
-      if (data?.length && onEndReachedTracker.current[data.length]) {
+    const endReached = async () => {
+      if (
+        !onEndReached ||
+        onEndReachedInProgress ||
+        appendingItems.current ||
+        (inverted && !onStartReached) ||
+        (!inverted && !onEndReached)
+      ) {
         return;
       }
 
-      if (data?.length) {
-        onEndReachedTracker.current[data.length] = true;
+      appendingItems.current = true;
+      setOnEndReachedInProgress(true);
+      if (inverted) {
+        await onStartReached?.();
+      } else {
+        await onEndReached?.();
+      }
+      setOnEndReachedInProgress(false);
+    };
+
+    const panResponder = useRef(
+      PanResponder.create({
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: () => {
+          if (prependingItems.current || !scrollerRef.current) {
+            return;
+          }
+
+          if (offsetFromTop.current <= 0) {
+            // @ts-ignore
+            lastYValue.current = pan.y._value;
+          } else {
+            resetPanHandlerAndScroller();
+          }
+        },
+        onPanResponderMove: (_, gestureState) => {
+          if (!scrollerRef.current) return;
+
+          if (
+            offsetFromTop.current > 0 ||
+            prependingItems.current ||
+            (!panResponderActive.current && gestureState.dy < 0)
+          ) {
+            resetPanHandlerAndScroller();
+            return;
+          }
+
+          if (lastYValue.current + gestureState.dy / dampingFactor < 0) {
+            resetPanHandlerAndScroller();
+            return;
+          }
+
+          panResponderActive.current = true;
+          pan.setValue({
+            x: 0,
+            y: lastYValue.current + gestureState.dy / dampingFactor,
+          });
+
+          if (
+            lastYValue.current + gestureState.dy / dampingFactor <
+              pullToRefreshReleaseThreshold &&
+            lastYValue.current + gestureState.dy / dampingFactor >
+              -pullToRefreshReleaseThreshold
+          ) {
+            fadeAnimation.setValue(0);
+          } else {
+            fadeAnimation.setValue(1);
+          }
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          if (!scrollerRef.current) return;
+
+          resetPanHandlerAndScroller();
+
+          if (
+            lastYValue.current + gestureState.dy >
+              pullToRefreshReleaseThreshold &&
+            offsetFromTop.current <= 0
+          ) {
+            startRefreshAction.current();
+          } else {
+            stopRefreshAction.current();
+          }
+        },
+      })
+    ).current;
+
+    const handleScroll: VirtuosoProps<unknown>['onScroll'] = (e) => {
+      const targetElem = e.target as HTMLDivElement;
+      offsetFromBottom.current =
+        targetElem.scrollHeight -
+        (targetElem.scrollTop + targetElem.clientHeight);
+      offsetFromTop.current = targetElem.scrollTop;
+
+      if (appendingItems.current || prependingItems.current) {
+        return;
       }
 
-      setOnEndReachedInProgress(true);
-      const p = () => {
-        return new Promise<void>((resolve) => {
-          onStartReachedInPromise.current = null;
-          setOnEndReachedInProgress(false);
-          resolve();
-        });
+      if (targetElem.scrollTop <= onStartReachedThreshold) {
+        startReached();
+      }
+
+      if (offsetFromBottom.current <= onEndReachedThreshold) {
+        endReached();
+      }
+
+      onScroll?.(e);
+    };
+
+    const Footer = () =>
+      ListFooterComponent ? (
+        <ListFooterComponent />
+      ) : onEndReachedInProgress ? (
+        FooterLoadingIndicator ? (
+          <FooterLoadingIndicator />
+        ) : showDefaultLoadingIndicators ? (
+          <View style={styles.indicatorContainer}>
+            <ActivityIndicator color={activityIndicatorColor} size={'small'} />
+          </View>
+        ) : null
+      ) : null;
+
+    const Header = () =>
+      ListHeaderComponent ? (
+        <ListHeaderComponent />
+      ) : onStartReachedInProgress ? (
+        HeaderLoadingIndicator ? (
+          <HeaderLoadingIndicator />
+        ) : showDefaultLoadingIndicators ? (
+          <View style={styles.indicatorContainer}>
+            <ActivityIndicator color={activityIndicatorColor} size={'small'} />
+          </View>
+        ) : null
+      ) : null;
+
+    const itemContent = useCallback(
+      (index: number) => {
+        if (!renderItem) {
+          console.warn('Please specify renderItem prop');
+          return null;
+        }
+
+        if (!vData) {
+          return null;
+        }
+
+        const indexInData = inverted
+          ? vData.length - 1 - (index + Math.abs(firstItemIndex.current))
+          : index + Math.abs(firstItemIndex.current);
+
+        return (
+          <>
+            {renderItem({
+              index,
+              item: vData[indexInData],
+              separators: {
+                highlight: EmptyFunction,
+                unhighlight: EmptyFunction,
+                updateProps: EmptyFunction,
+              },
+            })}
+            {indexInData !== vData.length && !!ItemSeparatorComponent && (
+              <ItemSeparatorComponent />
+            )}
+          </>
+        );
+      },
+      [vData?.length]
+    );
+
+    useEffect(() => {
+      const updateVirtuoso = () => {
+        if (!data?.length) {
+          return;
+        }
+
+        let nextFirstItemIndex = firstItemIndex.current;
+        if (prependingItems.current) {
+          nextFirstItemIndex =
+            firstItemIndex.current - (data.length - previousDataLength.current);
+        }
+
+        appendingItems.current = false;
+        prependingItems.current = false;
+        previousDataLength.current = data.length;
+
+        firstItemIndex.current = nextFirstItemIndex;
+        setVDate(() => data);
+
+        if (
+          enableAutoscrollToTop &&
+          offsetFromBottom.current < autoscrollToTopThreshold
+        ) {
+          setTimeout(() => {
+            virtuosoRef.current?.scrollToIndex({
+              behavior: 'smooth',
+              index: data.length,
+            });
+          }, 0);
+        }
       };
 
-      if (onStartReachedInPromise.current) {
-        onStartReachedInPromise.current.finally(() => {
-          onEndReachedInPromise.current = onEndReached().then(p);
-        });
-      } else {
-        onEndReachedInPromise.current = onEndReached().then(p);
+      updateVirtuoso();
+    }, [enableAutoscrollToTop, autoscrollToTopThreshold, data, setVDate]);
+
+    useEffect(() => {
+      if (refreshing) {
+        startRefreshAction.current();
       }
-    };
+    }, [refreshing]);
 
-    const handleScroll: ScrollViewProps['onScroll'] = (event) => {
-      // Call the parent onScroll handler, if provided.
-      onScroll?.(event);
+    useImperativeHandle(
+      ref,
+      // @ts-ignore
+      () => ({
+        flashScrollIndicators: EmptyFunction,
+        getNativeScrollRef: EmptyFunction,
+        getScrollableNode: EmptyFunction,
+        getScrollResponder: EmptyFunction,
+        recordInteraction: EmptyFunction,
+        scrollToEnd: (params = { animated: true }) => {
+          const { animated } = params;
+          if (!vData?.length) return;
 
-      const offset = event.nativeEvent.contentOffset.y;
-      const visibleLength = event.nativeEvent.layoutMeasurement.height;
-      const contentLength = event.nativeEvent.contentSize.height;
+          const index = inverted ? 0 : vData.length - 1;
+          virtuosoRef.current?.scrollToIndex({
+            behavior: animated ? 'smooth' : 'auto',
+            index,
+          });
+        },
+        scrollToIndex: ({
+          animated,
+          index,
+        }: {
+          index: number;
+          animated?: boolean | null;
+        }) => {
+          if (!vData) {
+            return;
+          }
 
-      // Check if scroll has reached either start of end of list.
-      const isScrollAtStart = offset < onStartReachedThreshold;
-      const isScrollAtEnd =
-        contentLength - visibleLength - offset < onEndReachedThreshold;
+          if (inverted) {
+            virtuosoRef.current?.scrollToIndex({
+              behavior: animated ? 'smooth' : 'auto',
+              index: vData.length - 1 - index,
+            });
+          } else {
+            virtuosoRef.current?.scrollToIndex({
+              behavior: animated ? 'smooth' : 'auto',
+              index,
+            });
+          }
+        },
+        scrollToItem: ({
+          animated,
+          item,
+        }: {
+          item: T;
+          animated?: boolean | null;
+        }) => {
+          if (!vData) {
+            return;
+          }
 
-      if (isScrollAtStart) {
-        maybeCallOnStartReached();
-      }
+          const index = vData.findIndex((d) => d === item);
+          virtuosoRef.current?.scrollToIndex({
+            behavior: animated ? 'smooth' : 'auto',
+            index,
+          });
+        },
+        scrollToOffset: EmptyFunction,
+        setNativeProps: EmptyFunction,
+      }),
+      [virtuosoRef, inverted, vData]
+    );
 
-      if (isScrollAtEnd) {
-        maybeCallOnEndReached();
-      }
-    };
+    useEffect(() => {
+      onRefreshRef.current = onRefresh;
+    }, [onRefresh]);
 
-    const renderHeaderLoadingIndicator = () => {
-      if (!showDefaultLoadingIndicators) {
-        if (ListHeaderComponent) {
-          return <ListHeaderComponent />;
-        } else {
-          return null;
+    if (!vData?.length || vData?.length === 0) {
+      return ListEmptyComponent ? <ListEmptyComponent /> : null;
+    }
+
+    const VirtuosoNode = (
+      <Virtuoso<T>
+        components={{
+          Footer,
+          Header,
+        }}
+        firstItemIndex={firstItemIndex.current}
+        initialTopMostItemIndex={
+          inverted ? vData.length - 1 - initialScrollIndex : initialScrollIndex
         }
-      }
+        itemContent={itemContent}
+        onScroll={handleScroll}
+        overscan={300}
+        ref={virtuosoRef}
+        // @ts-ignore
+        scrollerRef={(ref) => (scrollerRef.current = ref as HTMLElement)}
+        totalCount={vData.length}
+      />
+    );
 
-      if (!onStartReachedInProgress) return null;
-
-      if (HeaderLoadingIndicator) {
-        return <HeaderLoadingIndicator />;
-      }
-
-      return (
-        <View style={styles.indicatorContainer}>
-          <ActivityIndicator size={'small'} color={activityIndicatorColor} />
-        </View>
-      );
-    };
-
-    const renderFooterLoadingIndicator = () => {
-      if (!showDefaultLoadingIndicators) {
-        if (ListFooterComponent) {
-          return <ListFooterComponent />;
-        } else {
-          return null;
-        }
-      }
-
-      if (!onEndReachedInProgress) return null;
-
-      if (FooterLoadingIndicator) {
-        return <FooterLoadingIndicator />;
-      }
-
-      return (
-        <View style={styles.indicatorContainer}>
-          <ActivityIndicator size={'small'} color={activityIndicatorColor} />
-        </View>
-      );
-    };
+    if (!onRefresh) {
+      return VirtuosoNode;
+    }
 
     return (
       <>
-        <FlatList<T>
-          {...props}
-          ref={ref}
-          progressViewOffset={50}
-          ListHeaderComponent={renderHeaderLoadingIndicator}
-          ListFooterComponent={renderFooterLoadingIndicator}
-          onEndReached={null}
-          onScroll={handleScroll}
-          maintainVisibleContentPosition={{
-            autoscrollToTopThreshold: enableAutoscrollToTop
-              ? autoscrollToTopThreshold
-              : undefined,
-            minIndexForVisible: 1,
+        <Animated.View
+          style={{
+            flex: 1,
+            transform: [{ translateX: 0 }, { translateY: pan.y }],
           }}
-        />
+          {...panResponder.panHandlers}
+        >
+          <Animated.View
+            style={[
+              {
+                opacity: fadeAnimation,
+                transform: [{ translateX: 0 }, { translateY: -30 }],
+              },
+              styles.refreshControl,
+            ]}
+          >
+            <ActivityIndicator />
+          </Animated.View>
+
+          {VirtuosoNode}
+        </Animated.View>
       </>
     );
   }
 ) as unknown) as BidirectionalFlatListType;
 
-type BidirectionalFlatListType = <T extends any>(
+type BidirectionalFlatListType = <T extends unknown>(
   props: Props<T>
 ) => React.ReactElement;

@@ -8,31 +8,52 @@ export const generateUniqueKey = () =>
   `_${Math.random().toString(36).substr(2, 9)}`;
 
 export type Message = {
-  id: string;
+  id: number;
   text: string;
   isMyMessage: boolean;
 };
 
 // Mocks the api call to query 'n' number of messages.
-export const queryMoreMessages: (n: number) => Promise<Array<Message>> = (
-  n
+export const queryMoreMessages: (n: number, before: number | null, after: number | null) => Promise<Array<Message>> = (
+  n,
+  before,
+  after
 ) => {
   return new Promise((resolve) => {
     const newMessages: Array<Message> = [];
 
-    for (let i = 0; i < n; i++) {
-      const messageText = testMessages[getRandomInt(0, testMessages.length)];
-      newMessages.push({
-        id: generateUniqueKey(),
-        text: messageText,
-        isMyMessage: Boolean(getRandomInt(0, 2)), // Randomly assign true or false.
-      });
+    if (before !== null) {
+      for (let i = before - n; i < before; i++) {
+        const messageText = testMessages[getRandomInt(0, testMessages.length)];
+        newMessages.push({
+          id: i,
+          text: messageText,
+          isMyMessage: Boolean(getRandomInt(0, 2)), // Randomly assign true or false.
+        });
+      }
+    } else if (after !== null) {
+      for (let i = after + 1; i <= n + after; i++) {
+        const messageText = testMessages[getRandomInt(0, testMessages.length)];
+        newMessages.push({
+          id: i,
+          text: messageText,
+          isMyMessage: Boolean(getRandomInt(0, 2)), // Randomly assign true or false.
+        });
+      }
+    } else {
+      for (let i = 0; i < n; i++) {
+        const messageText = testMessages[getRandomInt(0, testMessages.length)];
+        newMessages.push({
+          id: i,
+          text: messageText,
+          isMyMessage: Boolean(getRandomInt(0, 2)), // Randomly assign true or false.
+        });
+      }
     }
-
-    // Lets resolve after 500 ms, to simulate network latency.
-    setTimeout(() => {
-      resolve(newMessages);
-    }, 500);
+      // Lets resolve after 500 ms, to simulate network latency.
+      setTimeout(() => {
+        resolve(newMessages);
+      }, 500);
   });
 };
 

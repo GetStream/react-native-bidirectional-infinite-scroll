@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
 
 import { FlatList } from 'react-native-bidirectional-infinite-scroll';
@@ -7,9 +7,10 @@ import { Message, queryMoreMessages } from './utils';
 
 const App = () => {
   const [messages, setMessages] = useState<Array<Message>>([]);
+  const flRef = useRef(null);
   useEffect(() => {
     const initChat = async () => {
-      const initialMessages = await queryMoreMessages(50);
+      const initialMessages = await queryMoreMessages(50, null, null);
       if (!initialMessages) return;
 
       setMessages(initialMessages);
@@ -19,18 +20,19 @@ const App = () => {
   }, []);
 
   const loadMoreOlderMessages = async () => {
-    const newMessages = await queryMoreMessages(10);
-    setMessages((m) => {
-      return m.concat(newMessages);
-    });
+      const newMessages = await queryMoreMessages(10, null, messages[messages.length - 1].id);
+      setMessages((m) => {
+        return m.concat(newMessages);
+      });
   };
 
-  const loadMoreRecentMessages = async () => {
-    const newMessages = await queryMoreMessages(10);
+  const loadMoreRecentMessages = useCallback(async () => {
+    const newMessages = await queryMoreMessages(10, messages[0].id, null);
+    console.log('loadMoreRecentMessages before ', messages[0].id)
     setMessages((m) => {
       return newMessages.concat(m);
     });
-  };
+  }, [messages]);
 
   if (!messages.length) {
     return null;
@@ -43,9 +45,11 @@ const App = () => {
       </View>
       <FlatList
         data={messages}
-        inverted
+        ref={flRef}
         onEndReached={loadMoreOlderMessages}
         onStartReached={loadMoreRecentMessages}
+        // inverted
+        // onRefresh={loadMoreRecentMessages}
         renderItem={MessageBubble}
       />
     </SafeAreaView>
