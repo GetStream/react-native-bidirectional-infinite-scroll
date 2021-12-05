@@ -115,6 +115,11 @@ export const BidirectionalFlatList = (React.forwardRef(
       }
 
       setOnStartReachedInProgress(true);
+
+      const onFinally = () => {
+        onStartReachedInPromise.current = onStartReached().then(p);
+      };
+
       const p = () => {
         return new Promise<void>((resolve) => {
           onStartReachedInPromise.current = null;
@@ -124,9 +129,7 @@ export const BidirectionalFlatList = (React.forwardRef(
       };
 
       if (onEndReachedInPromise.current) {
-        onEndReachedInPromise.current.finally(() => {
-          onStartReachedInPromise.current = onStartReached().then(p);
-        });
+        onEndReachedInPromise.current.then(onFinally, onFinally);
       } else {
         onStartReachedInPromise.current = onStartReached().then(p);
       }
@@ -143,6 +146,11 @@ export const BidirectionalFlatList = (React.forwardRef(
       }
 
       setOnEndReachedInProgress(true);
+
+      const onFinally = () => {
+        onEndReachedInPromise.current = onEndReached().then(p);
+      };
+
       const p = () => {
         return new Promise<void>((resolve) => {
           onStartReachedInPromise.current = null;
@@ -152,9 +160,7 @@ export const BidirectionalFlatList = (React.forwardRef(
       };
 
       if (onStartReachedInPromise.current) {
-        onStartReachedInPromise.current.finally(() => {
-          onEndReachedInPromise.current = onEndReached().then(p);
-        });
+        onStartReachedInPromise.current.then(onFinally, onFinally);
       } else {
         onEndReachedInPromise.current = onEndReached().then(p);
       }
