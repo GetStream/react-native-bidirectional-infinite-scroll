@@ -59,6 +59,10 @@ export type Props<T> = Omit<
   ListHeaderComponent?: React.ComponentType;
   /** Custom UI component for footer indicator of FlatList. Only used when `showDefaultLoadingIndicators` is false */
   ListFooterComponent?: React.ComponentType;
+  ref?:
+    | ((instance: FlatListType<T> | null) => void)
+    | MutableRefObject<FlatListType<T> | null>
+    | null;
 };
 /**
  * Note:
