@@ -9,7 +9,7 @@ const App = () => {
   const [messages, setMessages] = useState<Array<Message>>([]);
   useEffect(() => {
     const initChat = async () => {
-      const initialMessages = await queryMoreMessages(50);
+      const initialMessages = await queryMoreMessages(3);
       if (!initialMessages) return;
 
       setMessages(initialMessages);
@@ -19,14 +19,14 @@ const App = () => {
   }, []);
 
   const loadMoreOlderMessages = async () => {
-    const newMessages = await queryMoreMessages(10);
+    const newMessages = await queryMoreMessages(3);
     setMessages((m) => {
       return m.concat(newMessages);
     });
   };
 
   const loadMoreRecentMessages = async () => {
-    const newMessages = await queryMoreMessages(10);
+    const newMessages = await queryMoreMessages(3);
     setMessages((m) => {
       return newMessages.concat(m);
     });
