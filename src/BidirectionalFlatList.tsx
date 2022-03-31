@@ -1,4 +1,4 @@
-import React, { MutableRefObject, useRef, useState } from 'react';
+import React, { MutableRefObject, useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList as FlatListType,
@@ -6,6 +6,7 @@ import {
   ScrollViewProps,
   StyleSheet,
   View,
+  ViewProps,
 } from 'react-native';
 import { FlatList } from '@stream-io/flat-list-mvcp';
 
@@ -16,10 +17,8 @@ const styles = StyleSheet.create({
   },
 });
 
-export type Props<T> = Omit<
-  FlatListProps<T>,
-  'maintainVisibleContentPosition'
-> & {
+export type Props<T> = Omit<FlatListProps<T>,
+  'maintainVisibleContentPosition'> & {
   /**
    * Called once when the scroll position gets close to end of list. This must return a promise.
    * You can `onEndReachedThreshold` as distance from end of list, when this function should be called.
@@ -58,6 +57,10 @@ export type Props<T> = Omit<
   ListHeaderComponent?: React.ComponentType;
   /** Custom UI component for footer indicator of FlatList. Only used when `showDefaultLoadingIndicators` is false */
   ListFooterComponent?: React.ComponentType;
+  ref?:
+    | ((instance: FlatListType<T> | null) => void)
+    | MutableRefObject<FlatListType<T> | null>
+    | null;
 };
 /**
  * Note:
@@ -75,7 +78,7 @@ export const BidirectionalFlatList = (React.forwardRef(
     ref:
       | ((instance: FlatListType<T> | null) => void)
       | MutableRefObject<FlatListType<T> | null>
-      | null
+      | null,
   ) => {
     const {
       activityIndicatorColor = 'black',
@@ -92,11 +95,16 @@ export const BidirectionalFlatList = (React.forwardRef(
       onStartReached = () => Promise.resolve(),
       onStartReachedThreshold = 10,
       showDefaultLoadingIndicators = true,
+      onLayout,
+      onContentSizeChange,
     } = props;
     const [onStartReachedInProgress, setOnStartReachedInProgress] = useState(
-      false
+      false,
     );
     const [onEndReachedInProgress, setOnEndReachedInProgress] = useState(false);
+
+    const [contentHeight, setContentHeight] = useState(0);
+    const [layoutHeight, setLayoutHeight] = useState(0);
 
     const onStartReachedTracker = useRef<Record<number, boolean>>({});
     const onEndReachedTracker = useRef<Record<number, boolean>>({});
@@ -104,7 +112,7 @@ export const BidirectionalFlatList = (React.forwardRef(
     const onStartReachedInPromise = useRef<Promise<void> | null>(null);
     const onEndReachedInPromise = useRef<Promise<void> | null>(null);
 
-    const maybeCallOnStartReached = () => {
+    const maybeCallOnStartReached = useCallback(() => {
       // If onStartReached has already been called for given data length, then ignore.
       if (data?.length && onStartReachedTracker.current[data.length]) {
         return;
@@ -130,9 +138,9 @@ export const BidirectionalFlatList = (React.forwardRef(
       } else {
         onStartReachedInPromise.current = onStartReached().then(p);
       }
-    };
+    }, [data?.length, onStartReached]);
 
-    const maybeCallOnEndReached = () => {
+    const maybeCallOnEndReached = useCallback(() => {
       // If onEndReached has already been called for given data length, then ignore.
       if (data?.length && onEndReachedTracker.current[data.length]) {
         return;
@@ -158,7 +166,29 @@ export const BidirectionalFlatList = (React.forwardRef(
       } else {
         onEndReachedInPromise.current = onEndReached().then(p);
       }
-    };
+    }, [data?.length, onEndReached]);
+
+    const checkScrollPosition = useCallback(
+      (offset: number, visibleLength: number, contentLength: number) => {
+        const isScrollAtStart = offset < onStartReachedThreshold;
+        const isScrollAtEnd =
+          contentLength - visibleLength - offset < onEndReachedThreshold;
+
+        if (isScrollAtStart) {
+          maybeCallOnStartReached();
+        }
+
+        if (isScrollAtEnd) {
+          maybeCallOnEndReached();
+        }
+      },
+      [
+        maybeCallOnEndReached,
+        maybeCallOnStartReached,
+        onEndReachedThreshold,
+        onStartReachedThreshold,
+      ],
+    );
 
     const handleScroll: ScrollViewProps['onScroll'] = (event) => {
       // Call the parent onScroll handler, if provided.
@@ -168,19 +198,45 @@ export const BidirectionalFlatList = (React.forwardRef(
       const visibleLength = event.nativeEvent.layoutMeasurement.height;
       const contentLength = event.nativeEvent.contentSize.height;
 
-      // Check if scroll has reached either start of end of list.
-      const isScrollAtStart = offset < onStartReachedThreshold;
-      const isScrollAtEnd =
-        contentLength - visibleLength - offset < onEndReachedThreshold;
-
-      if (isScrollAtStart) {
-        maybeCallOnStartReached();
-      }
-
-      if (isScrollAtEnd) {
-        maybeCallOnEndReached();
-      }
+      checkScrollPosition(offset, visibleLength, contentLength);
     };
+
+    const checkHeights = useCallback(
+      (checkLayoutHeight: number, checkContentHeight: number) => {
+        if (checkLayoutHeight >= checkContentHeight) {
+          checkScrollPosition(0, checkLayoutHeight, checkContentHeight);
+        }
+      },
+      [checkScrollPosition],
+    );
+
+    const realOnContentSizeChange = useCallback(
+      (w: number, newContentHeight: number) => {
+        if (onContentSizeChange) {
+          onContentSizeChange(w, newContentHeight);
+        }
+        setContentHeight(newContentHeight);
+        checkHeights(layoutHeight, newContentHeight);
+      },
+      [checkHeights, layoutHeight, onContentSizeChange],
+    );
+
+    const onLayoutSizeChange: ViewProps['onLayout'] = useCallback(
+      (e) => {
+        if (onLayout){
+          onLayout(e);
+        }
+
+        const {
+          nativeEvent: {
+            layout: { height },
+          },
+        } = e;
+        setLayoutHeight(height);
+        checkHeights(height, contentHeight);
+      },
+      [checkHeights, contentHeight],
+    );
 
     const renderHeaderLoadingIndicator = () => {
       if (!showDefaultLoadingIndicators) {
@@ -230,6 +286,8 @@ export const BidirectionalFlatList = (React.forwardRef(
       <>
         <FlatList<T>
           {...props}
+          onLayout={onLayoutSizeChange}
+          onContentSizeChange={realOnContentSizeChange}
           ref={ref}
           progressViewOffset={50}
           ListHeaderComponent={renderHeaderLoadingIndicator}
@@ -245,9 +303,9 @@ export const BidirectionalFlatList = (React.forwardRef(
         />
       </>
     );
-  }
+  },
 ) as unknown) as BidirectionalFlatListType;
 
 type BidirectionalFlatListType = <T extends any>(
-  props: Props<T>
+  props: Props<T>,
 ) => React.ReactElement;
