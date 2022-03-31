@@ -17,10 +17,8 @@ const styles = StyleSheet.create({
   },
 });
 
-export type Props<T> = Omit<
-  FlatListProps<T>,
-  'maintainVisibleContentPosition'
-> & {
+export type Props<T> = Omit<FlatListProps<T>,
+  'maintainVisibleContentPosition'> & {
   /**
    * Called once when the scroll position gets close to end of list. This must return a promise.
    * You can `onEndReachedThreshold` as distance from end of list, when this function should be called.
@@ -80,7 +78,7 @@ export const BidirectionalFlatList = (React.forwardRef(
     ref:
       | ((instance: FlatListType<T> | null) => void)
       | MutableRefObject<FlatListType<T> | null>
-      | null
+      | null,
   ) => {
     const {
       activityIndicatorColor = 'black',
@@ -97,9 +95,11 @@ export const BidirectionalFlatList = (React.forwardRef(
       onStartReached = () => Promise.resolve(),
       onStartReachedThreshold = 10,
       showDefaultLoadingIndicators = true,
+      onLayout,
+      onContentSizeChange,
     } = props;
     const [onStartReachedInProgress, setOnStartReachedInProgress] = useState(
-      false
+      false,
     );
     const [onEndReachedInProgress, setOnEndReachedInProgress] = useState(false);
 
@@ -187,7 +187,7 @@ export const BidirectionalFlatList = (React.forwardRef(
         maybeCallOnStartReached,
         onEndReachedThreshold,
         onStartReachedThreshold,
-      ]
+      ],
     );
 
     const handleScroll: ScrollViewProps['onScroll'] = (event) => {
@@ -207,27 +207,35 @@ export const BidirectionalFlatList = (React.forwardRef(
           checkScrollPosition(0, checkLayoutHeight, checkContentHeight);
         }
       },
-      [checkScrollPosition]
+      [checkScrollPosition],
     );
 
-    const onContentSizeChange = useCallback(
-      (_, newContentHeight: number) => {
+    const realOnContentSizeChange = useCallback(
+      (w: number, newContentHeight: number) => {
+        if (onContentSizeChange) {
+          onContentSizeChange(w, newContentHeight);
+        }
         setContentHeight(newContentHeight);
         checkHeights(layoutHeight, newContentHeight);
       },
-      [checkHeights, layoutHeight]
+      [checkHeights, layoutHeight, onContentSizeChange],
     );
 
     const onLayoutSizeChange: ViewProps['onLayout'] = useCallback(
-      ({
-        nativeEvent: {
-          layout: { height },
-        },
-      }) => {
+      (e) => {
+        if (onLayout){
+          onLayout(e);
+        }
+
+        const {
+          nativeEvent: {
+            layout: { height },
+          },
+        } = e;
         setLayoutHeight(height);
         checkHeights(height, contentHeight);
       },
-      [checkHeights, contentHeight]
+      [checkHeights, contentHeight],
     );
 
     const renderHeaderLoadingIndicator = () => {
@@ -279,7 +287,7 @@ export const BidirectionalFlatList = (React.forwardRef(
         <FlatList<T>
           {...props}
           onLayout={onLayoutSizeChange}
-          onContentSizeChange={onContentSizeChange}
+          onContentSizeChange={realOnContentSizeChange}
           ref={ref}
           progressViewOffset={50}
           ListHeaderComponent={renderHeaderLoadingIndicator}
@@ -295,9 +303,9 @@ export const BidirectionalFlatList = (React.forwardRef(
         />
       </>
     );
-  }
+  },
 ) as unknown) as BidirectionalFlatListType;
 
 type BidirectionalFlatListType = <T extends any>(
-  props: Props<T>
+  props: Props<T>,
 ) => React.ReactElement;
