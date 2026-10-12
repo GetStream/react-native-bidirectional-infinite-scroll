@@ -1,3 +1,5 @@
+> **`react-native-bidirectional-infinite-scroll` is no longer maintained and is archived.** React Native's `FlatList` now does this with [`maintainVisibleContentPosition`](https://reactnative.dev/docs/scrollview#maintainvisiblecontentposition).
+
 # 📜 React Native Bi-directional Infinite Scroll
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/GetStream/react-native-bidirectional-infinite-scroll/blob/main/LICENSE)
